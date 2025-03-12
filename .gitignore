@@ -60,6 +60,5 @@ local.py
 Thumbs.db
 requirements.txt
 
-# 
-app
-api
+#
+signals.py
