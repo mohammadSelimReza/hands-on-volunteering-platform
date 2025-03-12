@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Profile, User
+from .models import CausesChoicesModel, Profile, SkillsModel, User
 
 
 # Register your models here.
@@ -10,3 +10,5 @@ class ProfileAdmin(admin.ModelAdmin):
 
 admin.site.register(User)
 admin.site.register(Profile, ProfileAdmin)
+admin.site.register(SkillsModel)
+admin.site.register(CausesChoicesModel)

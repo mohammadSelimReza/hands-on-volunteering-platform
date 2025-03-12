@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     # project's app,
+    "api",
     "app.user",
 ]
 MIDDLEWARE = [
@@ -103,10 +104,20 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 AUTH_USER_MODEL = "user.User"
+# Email settings:
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_USE_TLS = True
+EMAIL_PORT = os.getenv("EMAIL_PORT")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_PASS")
+
+
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
+BACKEND_URL = "http://127.0.0.1:8000/api/v1"
+FRONTEND_URL = "http://127.0.0.1:8000/api/v1"
 # REST FRAMEWORK Settings:
 REST_FRAMEWORK = {
     # only json exchange data
@@ -121,7 +132,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     # Default to authenticated users
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
     # limit req
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
@@ -134,7 +145,6 @@ REST_FRAMEWORK = {
         "login": "5/minute",
         "register": "3/minute",
     },
-    "DEFAULT_SCHEMA_CLASS": "drf_yasg.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
 }
 SIMPLE_JWT = {
@@ -146,6 +156,13 @@ SIMPLE_JWT = {
     "SIGNING_KEY": SECRET_KEY,
     "VERIFYING_KEY": None,
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "user_id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+    "JTI_CLAIM": "jti",
 }
 CORS_ALLOWED_ORIGINS = [
     # React frontend
