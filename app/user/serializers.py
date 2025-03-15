@@ -2,7 +2,14 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Profile, User
+from .models import (
+    CausesChoicesModel,
+    Profile,
+    ProfileCauses,
+    ProfileSkills,
+    SkillsModel,
+    User,
+)
 
 
 class CustomTokenSerializer(TokenObtainPairSerializer):
@@ -14,35 +21,62 @@ class CustomTokenSerializer(TokenObtainPairSerializer):
         return token
 
 
-class UserSerializer(serializers.ModelSerializer):
+class SkillModelSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = [
-            "username",
-            "first_name",
-            "last_name",
-            "email",
-            "full_name",
-        ]
+        model = SkillsModel
+        fields = ["id", "name"]
 
-    def to_representation(self, instance):
-        # Manually convert user_id to string format (hex)
-        representation = super().to_representation(instance)
-        representation["user_id"] = str(instance.user_id)  # Convert UUID to string
-        return representation
+
+class CausesChoicesModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CausesChoicesModel
+        fields = ["id", "name"]
+
+
+class ProfileSkillsSerializer(serializers.ModelSerializer):
+    skill = SkillModelSerializer()
+
+    class Meta:
+        model = ProfileSkills
+        fields = ["skill"]
+
+
+class ProfileCauseSerializer(serializers.ModelSerializer):
+    cause = CausesChoicesModelSerializer()
+
+    class Meta:
+        model = ProfileCauses
+        fields = ["cause"]
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            "user",
             "full_name",
             "image",
             "info",
             "city",
-            "skills",
-            "causeschoices",
+        ]
+
+
+class UserSerializer(serializers.ModelSerializer):
+    Profile = ProfileSerializer()
+    user_skills = ProfileSkillsSerializer(many=True)
+    user_interest = ProfileCauseSerializer(many=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "user_id",
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "full_name",
+            "Profile",
+            "user_skills",
+            "user_interest",
         ]
 
 
@@ -71,16 +105,14 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop("password2")
-        user = User.objects.create(
+        validated_data.pop("password2")  # Remove duplicate password field
+        user = User.objects.create_user(
+            username=validated_data["email"].split("@")[0],
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
             email=validated_data["email"],
+            password=validated_data["password"],
         )
-        email_username, _ = user.email.split("@")
-        user.username = email_username
-        user.full_name = f"{user.first_name} {user.last_name}"
-        user.set_password(validated_data["password"])
-        user.is_active = False
+        user.is_active = False  # Require email confirmation
         user.save()
         return user

@@ -14,9 +14,11 @@ class User(AbstractUser):
     username = models.CharField(max_length=30, unique=True, db_index=True)
     first_name = models.CharField(max_length=50, blank=True, null=True)
     last_name = models.CharField(max_length=50, blank=True, null=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, db_index=True)
     full_name = models.CharField(max_length=100, blank=True, null=True)
-    otp = models.CharField(unique=True, max_length=20, null=True, blank=True)
+    otp = models.CharField(
+        unique=True, max_length=20, null=True, blank=True, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
@@ -31,6 +33,15 @@ class User(AbstractUser):
         if self.full_name == "" or self.full_name is None:
             self.full_name = f"{self.first_name} {self.last_name}"
         super(User, self).save(*args, **kwargs)
+
+    def Profile(self):
+        return Profile.objects.filter(user=self).first()
+
+    def user_skills(self):
+        return ProfileSkills.objects.filter(profile=self.profile)
+
+    def user_interest(self):
+        return ProfileCauses.objects.filter(profile__user=self)
 
 
 class SkillsModel(models.Model):
@@ -54,7 +65,10 @@ class CausesChoicesModel(models.Model):
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    # For Fast lookups we are using user one to one as primary
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="profile", primary_key=True
+    )
     full_name = models.CharField(max_length=100, blank=True, null=True)
     image = models.URLField(
         default="https://res.cloudinary.com/dofqxmuya/image/upload/v1739757761/qx57adbbmy6vkh577y3j.png",
@@ -64,8 +78,7 @@ class Profile(models.Model):
     info = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    skills = models.ManyToManyField(SkillsModel, blank=True)
-    causeschoices = models.ManyToManyField(CausesChoicesModel, blank=True)
+    point_achieved = models.IntegerField(default=0, null=True)
 
     def __str__(self):
         if self.full_name:
@@ -77,3 +90,29 @@ class Profile(models.Model):
         if self.full_name == "" or self.full_name is None:
             self.full_name = self.user.full_name
         super(Profile, self).save(*args, **kwargs)
+
+
+class ProfileSkills(models.Model):  # 👈 Custom Many-to-Many Table
+    profile = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, related_name="skills", db_index=True
+    )
+    skill = models.ForeignKey(SkillsModel, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.profile.user.username
+
+    class Meta:
+        unique_together = ("profile", "skill")
+
+
+class ProfileCauses(models.Model):  # 👈 Custom Many-to-Many Table
+    profile = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, related_name="causes", db_index=True
+    )
+    cause = models.ForeignKey(CausesChoicesModel, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.profile.user.username
+
+    class Meta:
+        unique_together = ("profile", "cause")

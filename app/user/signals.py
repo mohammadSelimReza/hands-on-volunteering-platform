@@ -6,6 +6,11 @@ from .models import Profile, User
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
+    else:
+        profile = instance.profile
+        if profile.full_name != instance.full_name:
+            profile.full_name = instance.full_name
+            profile.save()
 
 
 def save_user_profile(sender, instance, **kwargs):

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     # project's app,
     "api",
     "app.user",
+    "app.event",
 ]
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -141,7 +142,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "20/minute",
-        "user": "2000/day",
+        "user": "5000/minute",
         "login": "5/minute",
         "register": "3/minute",
     },
@@ -155,18 +156,42 @@ SIMPLE_JWT = {
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "VERIFYING_KEY": None,
-    "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "user_id",
     "USER_ID_CLAIM": "user_id",
     "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+    "AUTH_HEADER_TYPES": ("Bearer",),
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
     "TOKEN_TYPE_CLAIM": "token_type",
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
 }
+
+# Security Headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_HSTS_SECONDS = 31536000  # One year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_SSL_REDIRECT = False  # Enforce HTTPS
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"  # Protect referrer data
+
+
+# CORS & CSRF
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    # React frontend
+    "http://localhost:3000",  # React frontend
+    "http://localhost:5173",  # Vite frontend
+    "http://127.0.0.1:8000",  # Local Django
+    "http://localhost:5174",
+]
+CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
-    # Local Django
+    "http://localhost:5173",
     "http://127.0.0.1:8000",
+    "http://localhost:5174",
 ]
