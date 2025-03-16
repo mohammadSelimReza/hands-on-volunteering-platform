@@ -51,7 +51,7 @@ class EventSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommentModel
-        fields = "__all__"
+        fields = ["id", "option", "created_at", "campaign", "user", "total_time"]
 
 
 class CampaignSerializer(serializers.ModelSerializer):
@@ -66,7 +66,6 @@ class CampaignSerializer(serializers.ModelSerializer):
             "body",
             "image",
             "urgency_level",
-            "total_contributed",
             "created_at",
             "total_comments",
             "total_time_from_start",

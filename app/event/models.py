@@ -42,7 +42,7 @@ class EventModel(models.Model):
         default=uuid.uuid4, unique=True, primary_key=True, editable=False, db_index=True
     )
     event_start = models.DateTimeField(db_index=True)
-    event_end = models.DateTimeField(db_index=True)
+    event_end = models.DateTimeField(db_index=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -95,9 +95,6 @@ class CampaignModel(models.Model):
     urgency_level = models.CharField(
         max_length=10, choices=URGENCY_LEVELS, default="Low", db_index=True
     )
-    total_contributed = models.PositiveIntegerField(
-        help_text="Total number of items/help needed"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -122,12 +119,15 @@ class CommentModel(models.Model):
     )
     user = models.ForeignKey(user_model.User, on_delete=models.SET_NULL, null=True)
     option = models.TextField(max_length=20, choices=status)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField()
     end_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Contributed by {self.user.full_name}"
 
     def total_time(self):
-        elapsed_time = timezone.now() - self.created_at
+        if self.end_at is not None and self.option == "Stop":
+            elapsed_time = self.end_at - self.created_at
+        else:
+            elapsed_time = timezone.now() - self.created_at
         return math.floor(elapsed_time.total_seconds() / 3600)
