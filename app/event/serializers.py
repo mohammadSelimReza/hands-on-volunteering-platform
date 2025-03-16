@@ -1,7 +1,5 @@
 from rest_framework import serializers
 
-from app.user.serializers import UserSerializer
-
 from .models import (
     CampaignModel,
     CommentModel,
@@ -57,7 +55,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class CampaignSerializer(serializers.ModelSerializer):
-    creator = UserSerializer()
+    # creator = UserSerializer()
 
     class Meta:
         model = CampaignModel
@@ -67,16 +65,12 @@ class CampaignSerializer(serializers.ModelSerializer):
             "title",
             "body",
             "image",
-            "target",
             "urgency_level",
-            "total_target",
-            "collected",
-            "progress_percentage",
+            "total_contributed",
             "created_at",
-            "updated_at",
-            "collection_remaining",
-            "progress_percentage",
-            "comment_list",
+            "total_comments",
+            "total_time_from_start",
+            "total_volunteered_time",
         ]
 
 
@@ -93,4 +87,4 @@ class HistroySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CommentModel
-        fields = ["campaign", "collected", "created_at"]
+        fields = ["campaign", "option", "created_at", "total_time"]

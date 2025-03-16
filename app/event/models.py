@@ -1,3 +1,4 @@
+import math
 import uuid
 
 from django.db import models
@@ -91,49 +92,42 @@ class CampaignModel(models.Model):
     title = models.CharField(max_length=255)
     body = models.TextField()
     image = models.URLField(null=True, blank=True)
-    target = models.CharField(
-        max_length=255, help_text="What is needed? (e.g., 'Winter Clothes')"
-    )
     urgency_level = models.CharField(
         max_length=10, choices=URGENCY_LEVELS, default="Low", db_index=True
     )
-    total_target = models.PositiveIntegerField(
+    total_contributed = models.PositiveIntegerField(
         help_text="Total number of items/help needed"
     )
-    collected = models.PositiveIntegerField(
-        default=0, help_text="Current progress of collected contributions"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.title} - {self.urgency_level}"
 
-    def collection_remaining(self):
-        return self.total_target - self.collected
+    def total_comments(self):
+        return self.comments.count()
 
-    def progress_percentage(self):
-        """Returns the percentage of the goal achieved."""
-        return (
-            round((self.collected / self.total_target) * 100, 2)
-            if self.total_target
-            else 0
-        )
+    def total_time_from_start(self):
+        elapsed_time = timezone.now() - self.created_at
+        return math.floor(elapsed_time.total_seconds() / 3600)
 
-    def comment_list(self):
-        return CommentModel.objects.filter(campaign=self).count()
+    def total_volunteered_time(self):
+        contributes = CommentModel.objects.filter(campaign=self)
+        return sum(contribute.total_time() for contribute in contributes)
 
 
 class CommentModel(models.Model):
+    status = (("Started", "Started"), ("Stop", "Stop"))
     campaign = models.ForeignKey(
         CampaignModel, on_delete=models.CASCADE, related_name="comments"
     )
     user = models.ForeignKey(user_model.User, on_delete=models.SET_NULL, null=True)
-    text = models.TextField()
-    collected = models.PositiveIntegerField(
-        default=0, help_text="Current progress of collected contributions"
-    )
+    option = models.TextField(max_length=20, choices=status)
     created_at = models.DateTimeField(auto_now_add=True)
+    end_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"Comment by {self.user.username if self.user else 'Anonymous'} on {self.campaign.title}"
+        return f"Contributed by {self.user.full_name}"
+
+    def total_time(self):
+        elapsed_time = timezone.now() - self.created_at
+        return math.floor(elapsed_time.total_seconds() / 3600)

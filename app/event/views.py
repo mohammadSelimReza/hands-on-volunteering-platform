@@ -251,7 +251,7 @@ class VolunteerHistory(generics.ListAPIView):
 
 
 class RecentPost(generics.ListAPIView):
-    serializer_class = CampaignSerializer
+    serializer_class = CampaignModel
 
     def get_queryset(self):
         user_id = self.kwargs["user_id"]
