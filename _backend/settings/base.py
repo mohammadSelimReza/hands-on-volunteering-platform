@@ -140,12 +140,12 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.ScopedRateThrottle",
     ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "20/minute",
-        "user": "5000/minute",
-        "login": "5/minute",
-        "register": "3/minute",
-    },
+    # "DEFAULT_THROTTLE_RATES": {
+    #     "anon": "20/minute",
+    #     "user": "50000/minute",
+    #     "login": "5/minute",
+    #     "register": "3/minute",
+    # },
     "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
 }
 SIMPLE_JWT = {

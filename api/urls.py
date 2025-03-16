@@ -7,6 +7,7 @@ from app.user import views as user_view
 
 router = DefaultRouter()
 router.register(r"campaigns", event_view.CampaignViewSet, basename="campaign")
+router.register(r"events", event_view.EventViewAPI, basename="eventView")
 router.register(r"comments", event_view.CommentViewSet, basename="comment")
 urlpatterns = [
     path("", include(router.urls)),
@@ -48,9 +49,17 @@ urlpatterns = [
     # skills and interest:
     path("skills/list/", user_view.SkillViewAPI.as_view(), name="skillsView"),
     path("interests/list/", user_view.InterestsViewAPI.as_view(), name="interestsView"),
-    # event:
-    path("event/create/", event_view.EventViewAPI.as_view(), name="eventView"),
     # location:
     path("event/location/", event_view.LocationApiView.as_view(), name="eventLocation"),
     path("event/register/", event_view.EventRegister.as_view(), name="eventRegister"),
+    path(
+        "campaign/history/<user_id>",
+        event_view.VolunteerHistory.as_view(),
+        name="campaignHistory",
+    ),
+    path(
+        "post/history/<user_id>",
+        event_view.RecentPost.as_view(),
+        name="postHistory",
+    ),
 ]

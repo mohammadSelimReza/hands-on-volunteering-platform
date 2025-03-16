@@ -1,5 +1,9 @@
+import django_filters
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, pagination, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,6 +21,7 @@ from .serializers import (
     CampaignSerializer,
     CommentSerializer,
     EventSerializer,
+    HistroySerializer,
     LocationSerializer,
     RegisterSerializer,
 )
@@ -28,16 +33,46 @@ class LocationApiView(generics.ListAPIView):
     serializer_class = LocationSerializer
 
 
-class EventViewAPI(generics.ListCreateAPIView):
+class EventFilter(django_filters.FilterSet):
+    is_available = django_filters.BooleanFilter(method="filter_is_available")
+
+    class Meta:
+        model = EventModel
+        fields = ["location", "category"]  # Don't include 'is_available' here
+
+    def filter_is_available(self, queryset, name, value):
+        now = timezone.now()
+        if value is not None:
+            # If True, filter events that are still available (event_end >= now)
+            # If False, filter events that are no longer available (event_end < now)
+            return (
+                queryset.filter(event_end__gte=now)
+                if value
+                else queryset.filter(event_end__lt=now)
+            )
+        return queryset
+
+
+class EventViewAPI(viewsets.ModelViewSet):
     queryset = EventModel.objects.all()
     serializer_class = EventSerializer
     permission_classes = [permissions.AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = EventFilter
 
 
 class CampaignPagination(pagination.PageNumberPagination):
     page_size = 100
     page_size_query_param = page_size
     max_page_size = 100
+
+
+urgency_order = Case(
+    When(urgency_level="Urgent", then=Value(1)),
+    When(urgency_level="Medium", then=Value(2)),
+    When(urgency_level="Low", then=Value(3)),
+    output_field=IntegerField(),
+)
 
 
 # Campaign View:
@@ -47,7 +82,9 @@ class CampaignViewSet(viewsets.ModelViewSet):
     Users can create, list, retrieve, update, and delete their campaigns.
     """
 
-    queryset = CampaignModel.objects.all().order_by("-created_at")
+    queryset = CampaignModel.objects.annotate(urgency_order=urgency_order).order_by(
+        "urgency_order"
+    )
     serializer_class = CampaignSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = CampaignPagination
@@ -202,3 +239,21 @@ class EventRegister(generics.CreateAPIView):
             {"message": "Successfully Registered For This Event"},
             status=status.HTTP_201_CREATED,
         )
+
+
+class VolunteerHistory(generics.ListAPIView):
+    serializer_class = HistroySerializer
+
+    def get_queryset(self):
+        user_id = self.kwargs["user_id"]
+        user = get_object_or_404(User, user_id=user_id)
+        return CommentModel.objects.filter(user=user)
+
+
+class RecentPost(generics.ListAPIView):
+    serializer_class = CampaignSerializer
+
+    def get_queryset(self):
+        user_id = self.kwargs["user_id"]
+        user = get_object_or_404(User, user_id=user_id)
+        return CampaignModel.objects.filter(creator=user)

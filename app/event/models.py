@@ -95,7 +95,7 @@ class CampaignModel(models.Model):
         max_length=255, help_text="What is needed? (e.g., 'Winter Clothes')"
     )
     urgency_level = models.CharField(
-        max_length=10, choices=URGENCY_LEVELS, default="medium"
+        max_length=10, choices=URGENCY_LEVELS, default="Low", db_index=True
     )
     total_target = models.PositiveIntegerField(
         help_text="Total number of items/help needed"

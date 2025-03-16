@@ -78,3 +78,19 @@ class CampaignSerializer(serializers.ModelSerializer):
             "progress_percentage",
             "comment_list",
         ]
+
+
+class CampaignNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CampaignModel
+        fields = [
+            "title",
+        ]
+
+
+class HistroySerializer(serializers.ModelSerializer):
+    campaign = CampaignNameSerializer()
+
+    class Meta:
+        model = CommentModel
+        fields = ["campaign", "collected", "created_at"]
