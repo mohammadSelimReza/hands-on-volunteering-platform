@@ -1,17 +1,13 @@
 from .base import *
 
-ALLOWED_HOSTS = ["yourdomain.com", "www.yourdomain.com"]
-
-CSRF_TRUSTED_ORIGINS = ["https://yourdomain.com"]
-
-
+ALLOWED_HOSTS = ["*"]
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "mydatabase",
-        "USER": "myuser",
-        "PASSWORD": "mypassword",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "NAME": "postgres",
+        "USER": "postgres.kdvnbqqxjjmntgomqsvo",
+        "PASSWORD": "Django_database_2025",
+        "HOST": "aws-0-ap-southeast-1.pooler.supabase.com",
+        "PORT": "6543",
     }
 }

@@ -86,7 +86,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Dhaka"
 
 USE_I18N = True
 
@@ -118,7 +118,7 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_PASS")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 BACKEND_URL = "http://127.0.0.1:8000/api/v1"
-FRONTEND_URL = "http://127.0.0.1:8000/api/v1"
+FRONTEND_URL = "http://localhost:5173"
 # REST FRAMEWORK Settings:
 REST_FRAMEWORK = {
     # only json exchange data

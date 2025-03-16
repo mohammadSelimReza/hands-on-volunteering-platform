@@ -1,5 +1,4 @@
 import django_filters
-from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -40,17 +39,17 @@ class EventFilter(django_filters.FilterSet):
         model = EventModel
         fields = ["location", "category"]  # Don't include 'is_available' here
 
-    def filter_is_available(self, queryset, name, value):
-        now = timezone.now()
-        if value is not None:
-            # If True, filter events that are still available (event_end >= now)
-            # If False, filter events that are no longer available (event_end < now)
-            return (
-                queryset.filter(event_end__gte=now)
-                if value
-                else queryset.filter(event_end__lt=now)
-            )
-        return queryset
+    # def filter_is_available(self, queryset, name, value):
+    #     now = timezone.now()
+    #     if value is not None:
+    #         # If True, filter events that are still available (event_end >= now)
+    #         # If False, filter events that are no longer available (event_end < now)
+    #         return (
+    #             queryset.filter(event_end__gte=now)
+    #             if value
+    #             else queryset.filter(event_end__lt=now)
+    #         )
+    #     return queryset
 
 
 class EventViewAPI(viewsets.ModelViewSet):
@@ -91,16 +90,15 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Custom create method to handle campaign creation failures"""
-
+        #   "created_at": "2025-03-10T19:16:07Z",
         user_id = request.data.get("user_id")
         title = request.data.get("title")
         body = request.data.get("body")
         image = request.data.get("image")
         level = request.data.get("level")
-        total_target = request.data.get("total_target")
 
         # Validate required fields
-        if not all([user_id, title, body, level, total_target]):
+        if not all([user_id, title, body, level]):
             return Response(
                 {"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -120,9 +118,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 title=title,
                 body=body,
                 image=image,
-                target=total_target,
                 urgency_level=level,
-                total_target=total_target,
             )
             campaign.save()
 
@@ -160,10 +156,9 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         user_id = request.data.get("user")
-        collected = request.data.get("collected")
+        option = request.data.get("option")
         campaign_id = request.data.get("campaign")
-        comment_text = request.data.get("text")
-        print(user_id)
+
         # Validate user
         try:
             user = User.objects.get(user_id=user_id)
@@ -180,37 +175,45 @@ class CommentViewSet(viewsets.ModelViewSet):
                 {"error": "Campaign not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Validate collected amount
-        if collected < 0:
-            return Response(
-                {"error": "Collected amount cannot be negative"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Check if the user already has an active "Started" comment (i.e., ongoing)
+        active_comment = CommentModel.objects.filter(
+            user=user, campaign=campaign, option="Started", end_at=None
+        ).first()
 
-        remaining_target = campaign.total_target - campaign.collected
-        if collected > remaining_target:
-            return Response(
-                {"error": "Contribution exceeds the remaining target"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if option == "Stop":
+            if active_comment:
+                active_comment.end_at = timezone.now()  # Mark the end time
+                active_comment.save()
+                return Response(
+                    {"message": "Contribution stopped successfully"},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"error": "No active volunteering session found"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        with transaction.atomic():
-            # Update campaign's collected amount
-            campaign.collected += collected
-            campaign.save()
+        elif option == "Started":
+            if active_comment:
+                return Response(
+                    {"message": "You are already contributing!"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            # Create comment
+            # Create a new volunteering record
             comment = CommentModel.objects.create(
                 campaign=campaign,
                 user=user,
-                text=comment_text,
-                collected=collected,
+                option="Started",
+                created_at=timezone.now(),
+            )
+            return Response(
+                {"message": "Contribution started successfully", "id": comment.id},
+                status=status.HTTP_201_CREATED,
             )
 
-        return Response(
-            {"message": "Comment created successfully"},
-            status=status.HTTP_201_CREATED,
-        )
+        return Response({"error": "Invalid option"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class EventRegister(generics.CreateAPIView):
@@ -251,7 +254,7 @@ class VolunteerHistory(generics.ListAPIView):
 
 
 class RecentPost(generics.ListAPIView):
-    serializer_class = CampaignSerializer
+    serializer_class = CampaignModel
 
     def get_queryset(self):
         user_id = self.kwargs["user_id"]
