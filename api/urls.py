@@ -62,4 +62,10 @@ urlpatterns = [
         event_view.RecentPost.as_view(),
         name="postHistory",
     ),
+    # Generate Certificate:
+    path(
+        "certificate/<user_id>/",
+        event_view.generate_certificate,
+        name="generate_certificate",
+    ),
 ]

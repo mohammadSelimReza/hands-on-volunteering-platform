@@ -1,13 +1,18 @@
+from datetime import datetime
+
 import django_filters
 from django.db.models import Case, IntegerField, Value, When
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.pdfgen import canvas
 from rest_framework import generics, pagination, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from app.user.models import User
+from app.user.models import Profile, User
 
 from .models import (
     CampaignModel,
@@ -26,32 +31,30 @@ from .serializers import (
 )
 
 
-# Create your views here.
+# Location API
 class LocationApiView(generics.ListAPIView):
     queryset = LocationModel.objects.all()
     serializer_class = LocationSerializer
 
 
+# Filtering for Events
 class EventFilter(django_filters.FilterSet):
     is_available = django_filters.BooleanFilter(method="filter_is_available")
 
     class Meta:
         model = EventModel
-        fields = ["location", "category"]  # Don't include 'is_available' here
+        fields = ["location", "category"]
 
-    # def filter_is_available(self, queryset, name, value):
-    #     now = timezone.now()
-    #     if value is not None:
-    #         # If True, filter events that are still available (event_end >= now)
-    #         # If False, filter events that are no longer available (event_end < now)
-    #         return (
-    #             queryset.filter(event_end__gte=now)
-    #             if value
-    #             else queryset.filter(event_end__lt=now)
-    #         )
-    #     return queryset
+    def filter_is_available(self, queryset, name, value):
+        now = timezone.now()
+        return (
+            queryset.filter(event_end__gte=now)
+            if value
+            else queryset.filter(event_end__lt=now)
+        )
 
 
+# Event View API
 class EventViewAPI(viewsets.ModelViewSet):
     queryset = EventModel.objects.all()
     serializer_class = EventSerializer
@@ -60,12 +63,14 @@ class EventViewAPI(viewsets.ModelViewSet):
     filterset_class = EventFilter
 
 
+# Pagination for Campaigns
 class CampaignPagination(pagination.PageNumberPagination):
     page_size = 100
-    page_size_query_param = page_size
+    page_size_query_param = "page_size"
     max_page_size = 100
 
 
+# Ordering Campaigns by Urgency
 urgency_order = Case(
     When(urgency_level="Urgent", then=Value(1)),
     When(urgency_level="Medium", then=Value(2)),
@@ -74,11 +79,18 @@ urgency_order = Case(
 )
 
 
-# Campaign View:
+# Campaign ViewSet
 class CampaignViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for handling Campaigns (Help Requests).
-    Users can create, list, retrieve, update, and delete their campaigns.
+    To Create you need to pass these following data:
+    {
+        "user_id":"user_id",
+        "title":"title",
+        "body":"details",
+        "image":"url_field(optional)",
+        "level": "Low / Medium / Urgent"
+    }
+    This post request will create a new campaign post.
     """
 
     queryset = CampaignModel.objects.annotate(urgency_order=urgency_order).order_by(
@@ -89,65 +101,84 @@ class CampaignViewSet(viewsets.ModelViewSet):
     pagination_class = CampaignPagination
 
     def create(self, request, *args, **kwargs):
-        """Custom create method to handle campaign creation failures"""
-        #   "created_at": "2025-03-10T19:16:07Z",
+        """
+        To Create you need to pass these following data:
+        {
+            "user_id":"user_id",
+            "title":"title",
+            "body":"details",
+            "image":"url_field(optional)",
+            "level": "Low / Medium / Urgent"
+        }
+        This post request will create a new campaign post.
+        """
+
         user_id = request.data.get("user_id")
         title = request.data.get("title")
         body = request.data.get("body")
         image = request.data.get("image")
         level = request.data.get("level")
 
-        # Validate required fields
         if not all([user_id, title, body, level]):
             return Response(
                 {"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate user
-        try:
-            user = User.objects.get(user_id=user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+        user = get_object_or_404(User, user_id=user_id)
 
-        # Create Campaign
-        try:
-            campaign = CampaignModel.objects.create(
-                creator=user,
-                title=title,
-                body=body,
-                image=image,
-                urgency_level=level,
-            )
-            campaign.save()
+        campaign = CampaignModel.objects.create(
+            creator=user,
+            title=title,
+            body=body,
+            image=image,
+            urgency_level=level,
+        )
 
-            return Response(
-                {"message": "Campaign created successfully"},
-                status=status.HTTP_201_CREATED,
+        return Response(
+            {"message": "Campaign created successfully"}, status=status.HTTP_201_CREATED
+        )
+
+    def list(self, request, *args, **kwargs):
+        """Update volunteer points whenever campaigns are fetched in the feed."""
+        print("access to it")
+        queryset = self.get_queryset()
+
+        for campaign in queryset:
+            active_comments = campaign.comments.filter(option="Started").select_related(
+                "user"
             )
-        except Exception as e:
-            return Response(
-                {"error": f"Campaign creation failed: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            for comment in active_comments:
+                elapsed_time = timezone.now() - comment.created_at
+                total_hours = divmod(elapsed_time.total_seconds(), 3600)[
+                    0
+                ]  # Calculate hours
+                reward = total_hours * 5
+
+                user_profile = Profile.objects.get(user=comment.user)
+                user_profile.point_achieved = reward
+                user_profile.save()
+                comment.end_at = timezone.now()
+                comment.save()
+
+        return super().list(request, *args, **kwargs)
 
     @action(detail=False, methods=["get"], url_path="urgent")
     def urgent_campaigns(self, request):
         """Get all urgent campaigns"""
-        urgent_campaigns = CampaignModel.objects.filter(urgency_level="urgent")
-        serializer = self.get_serializer(urgent_campaigns, many=True)
-        return Response(serializer.data)
-        """Custom endpoint to fetch only urgent campaigns"""
-        urgent_campaigns = CampaignModel.objects.filter(urgency_level="urgent")
+        urgent_campaigns = CampaignModel.objects.filter(urgency_level="Urgent")
         serializer = self.get_serializer(urgent_campaigns, many=True)
         return Response(serializer.data)
 
 
+# Comment ViewSet
 class CommentViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for handling Comments on campaigns.
-    Users can create, list, and delete their own comments.
+    To create volunteer model through comment u need to pass:
+    {
+        "user":"user_id",
+        "option": " Started / Stop",
+        "campaign": "campaign_id
+    }
     """
 
     queryset = CommentModel.objects.all().order_by("-created_at")
@@ -159,63 +190,88 @@ class CommentViewSet(viewsets.ModelViewSet):
         option = request.data.get("option")
         campaign_id = request.data.get("campaign")
 
-        # Validate user
-        try:
-            user = User.objects.get(user_id=user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+        user = get_object_or_404(User, user_id=user_id)
+        campaign = get_object_or_404(CampaignModel, id=campaign_id)
 
-        # Validate campaign
-        try:
-            campaign = CampaignModel.objects.get(id=campaign_id)
-        except CampaignModel.DoesNotExist:
-            return Response(
-                {"error": "Campaign not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+        # Check if the user already has a comment for this campaign
+        comment, created = CommentModel.objects.get_or_create(
+            user=user,
+            campaign=campaign,
+            defaults={"option": option, "created_at": timezone.now()},
+        )
 
-        # Check if the user already has an active "Started" comment (i.e., ongoing)
-        active_comment = CommentModel.objects.filter(
-            user=user, campaign=campaign, option="Started", end_at=None
-        ).first()
+        if (
+            not created
+        ):  # If the comment already exists, update it instead of creating a new one
+            if option == "Stop" and comment.option == "Started":
+                elapsed_time = timezone.now() - comment.created_at
+                total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
+                reward = total_hours * 5
 
-        if option == "Stop":
-            if active_comment:
-                active_comment.end_at = timezone.now()  # Mark the end time
-                active_comment.save()
+                user.profile.point_achieved += reward
+                user.profile.save()
+
+                comment.option = "Stop"
+                comment.end_at = timezone.now()
+                comment.save()
+
                 return Response(
                     {"message": "Contribution stopped successfully"},
                     status=status.HTTP_200_OK,
                 )
-            else:
+
+            elif option == "Started" and comment.option == "Stop":
+                comment.option = "Started"
+                comment.created_at = timezone.now()
+                comment.end_at = None
+                comment.save()
+
                 return Response(
-                    {"error": "No active volunteering session found"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"message": "Contribution restarted successfully"},
+                    status=status.HTTP_200_OK,
                 )
 
-        elif option == "Started":
-            if active_comment:
-                return Response(
-                    {"message": "You are already contributing!"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Create a new volunteering record
-            comment = CommentModel.objects.create(
-                campaign=campaign,
-                user=user,
-                option="Started",
-                created_at=timezone.now(),
-            )
             return Response(
-                {"message": "Contribution started successfully", "id": comment.id},
-                status=status.HTTP_201_CREATED,
+                {"message": "No changes made"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({"error": "Invalid option"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"message": "Contribution started successfully", "id": comment.id},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        """Stop the comment when the user clicks the Stop button."""
+        comment = self.get_object()  # Retrieve the comment instance
+        option = request.data.get("option")
+
+        if option == "Stop":
+            elapsed_time = timezone.now() - comment.created_at
+            total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]  # Get hours
+            reward = total_hours * 5  # Calculate reward (5 points per hour)
+
+            # Update user profile points
+            profile = comment.user.profile
+            profile.point_achieved += reward
+            profile.save()
+
+            # Update comment status
+            comment.option = "Stop"
+            comment.end_at = timezone.now()
+            comment.save()
+
+            return Response(
+                {"message": "Contribution stopped successfully", "reward": reward},
+                status=status.HTTP_200_OK,
+            )
+
+        # If "Stop" was not clicked, return the comment details
+        comment_view = CommentModel.objects.filter(id=comment.id).values()
+        return Response(comment_view, status=status.HTTP_200_OK)
 
 
+# Event Registration API
 class EventRegister(generics.CreateAPIView):
     queryset = RegisterPeople.objects.all()
     serializer_class = RegisterSerializer
@@ -224,39 +280,120 @@ class EventRegister(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         user_id = request.data.get("user_id")
         event_id = request.data.get("event_id")
+
         if not user_id or not event_id:
             return Response(
                 {"message": "User ID and Event ID are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         user = get_object_or_404(User, user_id=user_id)
         event = get_object_or_404(EventModel, event_id=event_id)
+
         if RegisterPeople.objects.filter(user=user, event=event).exists():
             return Response(
                 {"message": "User is already registered for this event"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        RegisterPeople.objects.create(user=user, event=event, registered_status=True)
 
+        RegisterPeople.objects.create(user=user, event=event, registered_status=True)
         return Response(
             {"message": "Successfully Registered For This Event"},
             status=status.HTTP_201_CREATED,
         )
 
 
+# Volunteer History API
 class VolunteerHistory(generics.ListAPIView):
     serializer_class = HistroySerializer
 
     def get_queryset(self):
-        user_id = self.kwargs["user_id"]
-        user = get_object_or_404(User, user_id=user_id)
+        user = get_object_or_404(User, user_id=self.kwargs["user_id"])
         return CommentModel.objects.filter(user=user)
 
 
+# Recent User Posts API
 class RecentPost(generics.ListAPIView):
-    serializer_class = CampaignModel
+    serializer_class = CampaignSerializer  # Fixed the incorrect serializer
 
     def get_queryset(self):
-        user_id = self.kwargs["user_id"]
-        user = get_object_or_404(User, user_id=user_id)
+        user = get_object_or_404(User, user_id=self.kwargs["user_id"])
         return CampaignModel.objects.filter(creator=user)
+
+
+def generate_certificate(request, user_id):
+    try:
+        # Prepare certificate details
+        print(f"Generating certificate for user_id: {user_id}")
+        user = get_object_or_404(User, user_id=user_id)
+        if user is None:
+            return Response({"message": "User Does not Exist"})
+        profile = get_object_or_404(Profile, user=user)
+        if profile is None:
+            return Response({"message": "User Profile Does not Exist"})
+        point = profile.point_achieved
+        if point > 19:
+            date_generated = datetime.today().strftime("%B %d, %Y")
+
+            # Generate PDF response
+            response = HttpResponse(content_type="application/pdf")
+            response["Content-Disposition"] = (
+                f'inline; filename="{profile.full_name}_certificate.pdf"'
+            )
+
+            width, height = landscape(A4)
+            pdf = canvas.Canvas(response, pagesize=(width, height))
+
+            # Background Image (Use an external URL or Cloudinary)
+            cert_template_url = "https://i.ibb.co.com/BHSX5rJc/certificate-imag.png"
+            pdf.drawImage(cert_template_url, 0, 0, width=width, height=height)
+
+            # Certificate Title
+            pdf.setFont("Helvetica-Bold", 30)
+            pdf.drawCentredString(
+                width / 2, height - 200, "CERTIFICATE OF APPRECIATION"
+            )
+
+            # Subtext
+            pdf.setFont("Helvetica", 14)
+            pdf.drawCentredString(width / 2, height - 230, "This is proudly awarded to")
+
+            # User's Name
+            pdf.setFont("Helvetica-Bold", 30)
+            pdf.drawCentredString(width / 2, height - 270, profile.full_name)
+
+            # Points Achieved
+            pdf.setFont("Helvetica", 18)
+            pdf.drawCentredString(
+                width / 2,
+                height - 310,
+                f"For outstanding volunteering efforts with {profile.point_achieved} points",
+            )
+
+            # Date
+            pdf.setFont("Helvetica", 14)
+            pdf.drawString(120, 100, f"Date: {date_generated}")
+
+            # Signature (use a transparent PNG signature)
+            signature_path = "https://i.ibb.co.com/cX6KTK27/signature.png"
+            pdf.drawImage(
+                signature_path, width - 300, 50, width=200, height=150, mask="auto"
+            )
+
+            # Signature Label
+            pdf.setFont("Helvetica", 12)
+            pdf.drawCentredString(width - 200, 100, "Handon's Signature")
+
+            # Finalize PDF
+            pdf.showPage()
+            pdf.save()
+
+            return response
+        else:
+            return Response({"message": "You need to earn more point."})
+
+    except Exception as e:
+        # In case of error, return a message with the error details
+        error_message = f"An error occurred while generating the certificate: {str(e)}"
+        print(error_message)
+        return HttpResponse(f"Error: {error_message}", status=500)

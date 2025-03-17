@@ -57,6 +57,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "image",
             "info",
             "city",
+            "point_achieved",
         ]
 
 

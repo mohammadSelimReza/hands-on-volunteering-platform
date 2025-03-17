@@ -39,68 +39,33 @@ class CreateUserAPIView(generics.CreateAPIView):
     authentication_classes = [SessionAuthentication]
 
     def post(self, request):
-        # Check if email already exists in the database
-        # Check if the email already exists in the database
-        email = request.data.get("email")
-        try:
-            existing_user = user_model.User.objects.get(email=email)
-            if existing_user.is_active:
-                # Email is already registered and active
-                return Response(
-                    {"error": "Email is already registered."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            else:
-                # Email exists but the user is not active, so delete the user
-                existing_user.delete()
-                return Response(
-                    {
-                        "error": "User is inactive. Account deleted.Try to Register again"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        except user_model.User.DoesNotExist:
-            # Email does not exist in the database, continue with user creation
-            pass
-
-        # Create the user instance and validate the data
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-
-            # Generate the confirmation token
+            #
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.user_id))
-
-            # Create the confirmation link
+            #
             confirm_link = f"{BACKEND_URL}/user/activate/{uid}/{token}"
-
-            # Prepare the email subject and body
-            email_subject = "Confirm your email"
+            email_subject = "Confirm your mail"
             email_body = render_to_string(
                 "confirm_email.html", {"confirm_link": confirm_link}
             )
-
-            # Create the email instance
             email = EmailMultiAlternatives(email_subject, "", to=[user.email])
             email.attach_alternative(email_body, "text/html")
-
-            # Send the email and handle potential exceptions
+            #
             try:
                 email.send()
             except BadHeaderError:
-                # Rollback user creation if email sending fails
                 user.delete()
                 return Response(
                     {"error": "Invalid email header."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            except Exception as e:
-                # Rollback user creation if email sending fails
+            except Exception:
                 user.delete()
                 return Response(
-                    {"error": f"Failed to send activation email: {str(e)}"},
+                    {"error": "Failed to send activation email."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
@@ -108,8 +73,6 @@ class CreateUserAPIView(generics.CreateAPIView):
                 {"detail": "Check your mail to activate your account"},
                 status=status.HTTP_201_CREATED,
             )
-
-        # If serializer is invalid, return the validation errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -125,25 +88,15 @@ def activate_account(request, uid64, token):
         uid = force_str(urlsafe_base64_decode(uid64))
         user = user_model.User.objects.get(user_id=uid)
     except user_model.User.DoesNotExist:
-        return redirect(f"{FRONTEND_URL}/auth/sign-in")
+        return redirect(f"{FRONTEND_URL}/invalid-link")
     except Exception as e:
-        # In case of any other error, log the error and redirect
-        print(f"Error during account activation: {e}")
-        return redirect(f"{FRONTEND_URL}/auth/sign-in")
-
+        Response({"detail": f"Error in activation: {e}"})
+        return redirect(f"{FRONTEND_URL}/invalid-link")
     if user is not None and token_valid(user, token):
-        # Successful activation
         user.is_active = True
         user.save()
-
-        # Redirect to the desired page after successful activation
-        return redirect(
-            f"{FRONTEND_URL}/auth/sign-in/"
-        )  # or any page after successful login
-
-    else:
-        # If token is invalid or expired, send an error message
-        return redirect(f"{FRONTEND_URL}/auth/sign-in/?error=token_expired")
+        return redirect(f"{FRONTEND_URL}/login")
+    return redirect(f"{FRONTEND_URL}")
 
 
 class LoginTokenAPIView(TokenObtainPairView):

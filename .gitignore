@@ -56,4 +56,7 @@ ENV/
 .DS_Store
 
 # Windows
+local.py
 Thumbs.db
+requirements.txt
+

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from app.user.serializers import UserSerializer
+
 from .models import (
     CampaignModel,
     CommentModel,
@@ -55,7 +57,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class CampaignSerializer(serializers.ModelSerializer):
-    # creator = UserSerializer()
+    creator = UserSerializer()
 
     class Meta:
         model = CampaignModel
