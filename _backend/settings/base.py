@@ -142,9 +142,9 @@ REST_FRAMEWORK = {
     ],
     # "DEFAULT_THROTTLE_RATES": {
     #     "anon": "20/minute",
-    #     "user": "50000/minute",
-    #     "login": "5/minute",
-    #     "register": "3/minute",
+    #     "user": "5000/minute",
+    #     "login": "10/minute",
+    #     "register": "5/minute",
     # },
     "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
 }

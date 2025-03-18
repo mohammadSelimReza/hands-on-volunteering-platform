@@ -185,6 +185,17 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [permissions.AllowAny]
 
+    def list(self, request, *args, **kwargs):
+        user_id = request.query_params.get("user_id")
+        if user_id:
+            user = get_object_or_404(User, user_id=user_id)
+            comments = CommentModel.objects.filter(user=user)
+        else:
+            comments = CommentModel.objects.all()
+
+        serializer = self.get_serializer(comments, many=True)
+        return Response(serializer.data)
+
     def create(self, request, *args, **kwargs):
         user_id = request.data.get("user")
         option = request.data.get("option")
@@ -193,25 +204,26 @@ class CommentViewSet(viewsets.ModelViewSet):
         user = get_object_or_404(User, user_id=user_id)
         campaign = get_object_or_404(CampaignModel, id=campaign_id)
 
-        # Check if the user already has a comment for this campaign
         comment, created = CommentModel.objects.get_or_create(
-            user=user,
-            campaign=campaign,
-            defaults={"option": option, "created_at": timezone.now()},
+            user=user, campaign=campaign
         )
 
-        if (
-            not created
-        ):  # If the comment already exists, update it instead of creating a new one
+        if not created:
             if option == "Stop" and comment.option == "Started":
                 elapsed_time = timezone.now() - comment.created_at
+
                 total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
+                print("elap", elapsed_time)
+                print("thourse", total_hours)
                 reward = total_hours * 5
 
                 user.profile.point_achieved += reward
                 user.profile.save()
 
                 comment.option = "Stop"
+                print(reward)
+                comment.total_volunteered += total_hours
+                print("total", comment.total_volunteered)
                 comment.end_at = timezone.now()
                 comment.save()
 
@@ -222,7 +234,6 @@ class CommentViewSet(viewsets.ModelViewSet):
 
             elif option == "Started" and comment.option == "Stop":
                 comment.option = "Started"
-                comment.created_at = timezone.now()
                 comment.end_at = None
                 comment.save()
 
@@ -240,35 +251,6 @@ class CommentViewSet(viewsets.ModelViewSet):
             {"message": "Contribution started successfully", "id": comment.id},
             status=status.HTTP_201_CREATED,
         )
-
-    def retrieve(self, request, *args, **kwargs):
-        """Stop the comment when the user clicks the Stop button."""
-        comment = self.get_object()  # Retrieve the comment instance
-        option = request.data.get("option")
-
-        if option == "Stop":
-            elapsed_time = timezone.now() - comment.created_at
-            total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]  # Get hours
-            reward = total_hours * 5  # Calculate reward (5 points per hour)
-
-            # Update user profile points
-            profile = comment.user.profile
-            profile.point_achieved += reward
-            profile.save()
-
-            # Update comment status
-            comment.option = "Stop"
-            comment.end_at = timezone.now()
-            comment.save()
-
-            return Response(
-                {"message": "Contribution stopped successfully", "reward": reward},
-                status=status.HTTP_200_OK,
-            )
-
-        # If "Stop" was not clicked, return the comment details
-        comment_view = CommentModel.objects.filter(id=comment.id).values()
-        return Response(comment_view, status=status.HTTP_200_OK)
 
 
 # Event Registration API
@@ -314,7 +296,7 @@ class VolunteerHistory(generics.ListAPIView):
 
 # Recent User Posts API
 class RecentPost(generics.ListAPIView):
-    serializer_class = CampaignSerializer  # Fixed the incorrect serializer
+    serializer_class = CampaignSerializer
 
     def get_queryset(self):
         user = get_object_or_404(User, user_id=self.kwargs["user_id"])
@@ -323,8 +305,6 @@ class RecentPost(generics.ListAPIView):
 
 def generate_certificate(request, user_id):
     try:
-        # Prepare certificate details
-        print(f"Generating certificate for user_id: {user_id}")
         user = get_object_or_404(User, user_id=user_id)
         if user is None:
             return Response({"message": "User Does not Exist"})
@@ -334,8 +314,6 @@ def generate_certificate(request, user_id):
         point = profile.point_achieved
         if point > 19:
             date_generated = datetime.today().strftime("%B %d, %Y")
-
-            # Generate PDF response
             response = HttpResponse(content_type="application/pdf")
             response["Content-Disposition"] = (
                 f'inline; filename="{profile.full_name}_certificate.pdf"'
@@ -344,25 +322,17 @@ def generate_certificate(request, user_id):
             width, height = landscape(A4)
             pdf = canvas.Canvas(response, pagesize=(width, height))
 
-            # Background Image (Use an external URL or Cloudinary)
             cert_template_url = "https://i.ibb.co.com/BHSX5rJc/certificate-imag.png"
             pdf.drawImage(cert_template_url, 0, 0, width=width, height=height)
-
-            # Certificate Title
             pdf.setFont("Helvetica-Bold", 30)
             pdf.drawCentredString(
                 width / 2, height - 200, "CERTIFICATE OF APPRECIATION"
             )
-
-            # Subtext
             pdf.setFont("Helvetica", 14)
             pdf.drawCentredString(width / 2, height - 230, "This is proudly awarded to")
 
-            # User's Name
             pdf.setFont("Helvetica-Bold", 30)
             pdf.drawCentredString(width / 2, height - 270, profile.full_name)
-
-            # Points Achieved
             pdf.setFont("Helvetica", 18)
             pdf.drawCentredString(
                 width / 2,
@@ -370,21 +340,17 @@ def generate_certificate(request, user_id):
                 f"For outstanding volunteering efforts with {profile.point_achieved} points",
             )
 
-            # Date
             pdf.setFont("Helvetica", 14)
             pdf.drawString(120, 100, f"Date: {date_generated}")
 
-            # Signature (use a transparent PNG signature)
             signature_path = "https://i.ibb.co.com/cX6KTK27/signature.png"
             pdf.drawImage(
                 signature_path, width - 300, 50, width=200, height=150, mask="auto"
             )
 
-            # Signature Label
             pdf.setFont("Helvetica", 12)
             pdf.drawCentredString(width - 200, 100, "Handon's Signature")
 
-            # Finalize PDF
             pdf.showPage()
             pdf.save()
 
@@ -393,7 +359,7 @@ def generate_certificate(request, user_id):
             return Response({"message": "You need to earn more point."})
 
     except Exception as e:
-        # In case of error, return a message with the error details
+        # error,
         error_message = f"An error occurred while generating the certificate: {str(e)}"
         print(error_message)
         return HttpResponse(f"Error: {error_message}", status=500)

@@ -119,8 +119,9 @@ class CommentModel(models.Model):
     )
     user = models.ForeignKey(user_model.User, on_delete=models.SET_NULL, null=True)
     option = models.TextField(max_length=20, choices=status)
-    created_at = models.DateTimeField()
-    end_at = models.DateTimeField(null=True, blank=True)
+    total_volunteered = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    end_at = models.DateTimeField(default=None, null=True, blank=True)
 
     def __str__(self):
         return f"Contributed by {self.user.full_name}"

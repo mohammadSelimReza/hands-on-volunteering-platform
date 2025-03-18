@@ -65,7 +65,6 @@ class CausesChoicesModel(models.Model):
 
 
 class Profile(models.Model):
-    # For Fast lookups we are using user one to one as primary
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="profile", primary_key=True
     )
@@ -78,6 +77,7 @@ class Profile(models.Model):
     info = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    volunteer_status = models.BooleanField(default=False)
     point_achieved = models.IntegerField(default=0, null=True)
 
     def __str__(self):

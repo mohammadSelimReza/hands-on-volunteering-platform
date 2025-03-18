@@ -9,7 +9,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.timezone import now
 from rest_framework import generics, status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -190,6 +190,7 @@ class PasswordUpdateAPIView(generics.UpdateAPIView):
     """
 
     serializer_class = user_serializer.UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def update(self, request, *args, **kwargs):
         user_id = kwargs.get("user_id")
@@ -202,7 +203,7 @@ class PasswordUpdateAPIView(generics.UpdateAPIView):
 
         user = get_object_or_404(user_model.User, user_id=user_id)
         user.set_password(password)
-        user.otp = ""  # Reset OTP (if used for verification)
+        user.otp = ""
         user.save()
 
         return Response(
@@ -212,6 +213,7 @@ class PasswordUpdateAPIView(generics.UpdateAPIView):
 
 class ProfileUpdate(generics.RetrieveUpdateAPIView):
     serializer_class = user_serializer.ProfileSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         user_id = self.kwargs["user_id"]
@@ -221,7 +223,6 @@ class ProfileUpdate(generics.RetrieveUpdateAPIView):
         profile = serializer.instance
         data = self.request.data
 
-        # Update User first & last name if provided
         first_name = data.get("first_name")
         last_name = data.get("last_name")
         if first_name or last_name:
@@ -231,17 +232,15 @@ class ProfileUpdate(generics.RetrieveUpdateAPIView):
             profile.user.full_name = f"{first_name} {last_name}"
             profile.user.save()
 
-        # Update Profile fields if provided
         if "location" in data:
             profile.city = data["location"]
         if "personal_info" in data:
             profile.info = data["personal_info"]
         profile.save()
 
-        # ✅ Update Skills Only if Provided
         if "skills" in data:
             skills = data["skills"]
-            if skills:  # If not empty, update skills
+            if skills:
                 profile.skills.all().delete()
                 user_model.ProfileSkills.objects.bulk_create(
                     [
@@ -249,13 +248,12 @@ class ProfileUpdate(generics.RetrieveUpdateAPIView):
                         for skill in skills
                     ]
                 )
-            else:  # If empty list `[]`, remove all skills
+            else:
                 profile.skills.all().delete()
 
-        # ✅ Update Interests Only if Provided
         if "interests" in data:
             interests = data["interests"]
-            if interests:  # If not empty, update interests
+            if interests:
                 profile.causes.all().delete()
                 user_model.ProfileCauses.objects.bulk_create(
                     [
@@ -263,7 +261,7 @@ class ProfileUpdate(generics.RetrieveUpdateAPIView):
                         for interest in interests
                     ]
                 )
-            else:  # If empty list `[]`, remove all interests
+            else:
                 profile.causes.all().delete()
 
         serializer.save()
