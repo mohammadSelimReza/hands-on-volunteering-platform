@@ -98,7 +98,7 @@ class CampaignModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.title} - {self.urgency_level}"
+        return f"{self.title} - {self.urgency_level} by {self.creator}"
 
     def total_comments(self):
         return self.comments.count()
@@ -124,7 +124,7 @@ class CommentModel(models.Model):
     end_at = models.DateTimeField(default=None, null=True, blank=True)
 
     def __str__(self):
-        return f"Contributed by {self.user.full_name}"
+        return f"Contributed by {self.user.full_name} on {self.campaign} "
 
     def total_time(self):
         if self.end_at is not None and self.option == "Stop":

@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from _backend.settings.base import BACKEND_URL, FRONTEND_URL
+from _backend.settings.production import BACKEND_URL, FRONTEND_URL
 
 from . import models as user_model
 from . import serializers as user_serializer

@@ -4,8 +4,10 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     ".vercel.app",  # Vercel frontend
-    "your-backend-domain.com",  # If deployed backend
+    ".netlify.app",
 ]
+BACKEND_URL = os.getenv("back")
+FRONTEND_URL = os.getenv("front")
 # CORS & CSRF
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
@@ -14,6 +16,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",  # Local Django backend
     "http://localhost:5174",  # Additional dev port
     "https://hands-on-volunteering-platform-or66d8a4v.vercel.app",  # Vercel frontend (production)
+    "https://handson-social.netlify.app",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
@@ -21,6 +24,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:5174",
     "https://hands-on-volunteering-platform-or66d8a4v.vercel.app",  # Vercel frontend (production)
+    "https://handson-social.netlify.app",
 ]
 DATABASES = {
     "default": {

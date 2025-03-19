@@ -60,9 +60,13 @@ class EventFilter(django_filters.FilterSet):
 class EventViewAPI(viewsets.ModelViewSet):
     queryset = EventModel.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [permissions.AllowAny]
     filter_backends = [DjangoFilterBackend]
     filterset_class = EventFilter
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -98,8 +102,12 @@ class CampaignViewSet(viewsets.ModelViewSet):
         .order_by("urgency_order")
     )
     serializer_class = CampaignSerializer
-    permission_classes = [permissions.AllowAny]
     pagination_class = CampaignPagination
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
         """
@@ -201,16 +209,14 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     queryset = CommentModel.objects.all().order_by("-created_at")
     serializer_class = CommentSerializer
-    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def list(self, request, *args, **kwargs):
         user_id = request.query_params.get("user_id")
-        cache_key = f"comments_list_{user_id}" if user_id else "comments_list"
-
-        cached_data = cache.get(cache_key)
-        if cached_data:
-            return Response(cached_data)
-
         if user_id:
             user = get_object_or_404(User, user_id=user_id)
             comments = CommentModel.objects.filter(user=user).select_related(
@@ -220,7 +226,6 @@ class CommentViewSet(viewsets.ModelViewSet):
             comments = CommentModel.objects.all().select_related("campaign", "user")
 
         serializer = self.get_serializer(comments, many=True)
-        cache.set(cache_key, serializer.data, timeout=600)
         return Response(serializer.data)
 
     @transaction.atomic
@@ -231,49 +236,60 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         user = get_object_or_404(User, user_id=user_id)
         campaign = get_object_or_404(CampaignModel, id=campaign_id)
-        comment, created = CommentModel.objects.get_or_create(
-            user=user, campaign=campaign
-        )
 
-        if not created:
-            if option == "Stop" and comment.option == "Started":
-                elapsed_time = timezone.now() - comment.created_at
-                total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
-                reward = total_hours * 5
+        # Get existing comment or create a new one
+        comment = CommentModel.objects.filter(user=user, campaign=campaign).first()
 
-                user.profile.point_achieved += reward
-                user.profile.save()
-
-                comment.option = "Stop"
-                comment.total_volunteered += total_hours
-                comment.end_at = timezone.now()
-                comment.save()
-
-                return Response(
-                    {"message": "Contribution stopped successfully"},
-                    status=status.HTTP_200_OK,
-                )
-
-            elif option == "Started" and comment.option == "Stop":
-                comment.option = "Started"
-                comment.end_at = None
-                comment.save()
-
-                return Response(
-                    {"message": "Contribution restarted successfully"},
-                    status=status.HTTP_200_OK,
-                )
-
+        if not comment:
+            comment = CommentModel.objects.create(
+                user=user, campaign=campaign, option="Started"
+            )
+            cache.delete("campaigns_list")  # Clear cache since new data is added
+            cache.delete("comments_list")
             return Response(
-                {"message": "No changes made"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"message": "Contribution started successfully", "id": comment.id},
+                status=status.HTTP_201_CREATED,
             )
 
-        cache.delete("comments_list")
+        # Handling Stop action
+        if option == "Stop" and comment.option == "Started":
+            elapsed_time = timezone.now() - comment.created_at
+            total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
+            reward = total_hours * 5
+
+            user.profile.point_achieved += reward
+            user.profile.save()
+
+            comment.option = "Stop"
+            comment.total_volunteered += total_hours
+            comment.end_at = timezone.now()
+            print(comment)
+            comment.save()
+
+            cache.delete("campaigns_list")
+            cache.delete("comments_list")
+            return Response(
+                {"message": "Contribution stopped successfully"},
+                status=status.HTTP_200_OK,
+            )
+
+        # Handling Restart action
+        if option == "Started" and comment.option == "Stop":
+            comment.option = "Started"
+            comment.end_at = None
+            print(comment)
+            comment.save()
+
+            cache.delete("campaigns_list")
+            cache.delete("comments_list")
+            return Response(
+                {"message": "Contribution restarted successfully"},
+                status=status.HTTP_200_OK,
+            )
 
         return Response(
-            {"message": "Contribution started successfully", "id": comment.id},
-            status=status.HTTP_201_CREATED,
+            {"message": "No changes made"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -281,7 +297,7 @@ class CommentViewSet(viewsets.ModelViewSet):
 class EventRegister(generics.CreateAPIView):
     queryset = RegisterPeople.objects.all()
     serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
         user_id = request.data.get("user_id")

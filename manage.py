@@ -11,7 +11,7 @@ def main():
     """Run administrative tasks."""
     if base.DEBUG:
         # run locally
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "_backend.settings.production")
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "_backend.settings.local")
     else:
         # run in production
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "_backend.settings.production")

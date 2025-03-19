@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = True
+DEBUG = False
 # Application definition
 INSTALLED_APPS = [
     # built in app
@@ -115,8 +115,7 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_PASS")
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-BACKEND_URL = "http://127.0.0.1:8000/api/v1"
-FRONTEND_URL = "http://127.0.0.1:8000/api/v1"
+
 # REST FRAMEWORK Settings:
 REST_FRAMEWORK = {
     # only json exchange data
@@ -138,19 +137,19 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.ScopedRateThrottle",
     ],
-    # "DEFAULT_THROTTLE_RATES": {
-    #     "anon": "20/minute",
-    #     "user": "5000/minute",
-    #     "login": "10/minute",
-    #     "register": "5/minute",
-    # },
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "5000/minute",
+        "login": "10/minute",
+        "register": "5/minute",
+    },
     "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
 }
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,  # Enable token blacklisting
+    "BLACKLIST_AFTER_ROTATION": True,
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "VERIFYING_KEY": None,
@@ -163,17 +162,3 @@ SIMPLE_JWT = {
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
 }
-
-# Security Headers
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 31536000  # One year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_SSL_REDIRECT = False  # Enforce HTTPS
-SESSION_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access
-X_FRAME_OPTIONS = "DENY"
-SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"  # Protect referrer data
