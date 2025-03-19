@@ -177,19 +177,3 @@ CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access
 X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"  # Protect referrer data
-
-
-# CORS & CSRF
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React frontend
-    "http://localhost:5173",  # Vite frontend
-    "http://127.0.0.1:8000",  # Local Django
-    "http://localhost:5174",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-    "http://localhost:5174",
-]
