@@ -3,7 +3,7 @@ from .base import *
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "hands-on-volunteering-platform-or66d8a4v.vercel.app",  # Vercel frontend
+    ".vercel.app",  # Vercel frontend
     "your-backend-domain.com",  # If deployed backend
 ]
 # CORS & CSRF
