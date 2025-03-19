@@ -1,6 +1,8 @@
 from datetime import datetime
 
 import django_filters
+from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -62,6 +64,10 @@ class EventViewAPI(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = EventFilter
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        print(instance.location)
+
 
 # Pagination for Campaigns
 class CampaignPagination(pagination.PageNumberPagination):
@@ -82,19 +88,14 @@ urgency_order = Case(
 # Campaign ViewSet
 class CampaignViewSet(viewsets.ModelViewSet):
     """
-    To Create you need to pass these following data:
-    {
-        "user_id":"user_id",
-        "title":"title",
-        "body":"details",
-        "image":"url_field(optional)",
-        "level": "Low / Medium / Urgent"
-    }
-    This post request will create a new campaign post.
+    API EndPoint for Campaign Model
     """
 
-    queryset = CampaignModel.objects.annotate(urgency_order=urgency_order).order_by(
-        "urgency_order"
+    queryset = (
+        CampaignModel.objects.annotate(urgency_order=urgency_order)
+        .select_related("creator")
+        .prefetch_related("comments__user")
+        .order_by("urgency_order")
     )
     serializer_class = CampaignSerializer
     permission_classes = [permissions.AllowAny]
@@ -133,34 +134,51 @@ class CampaignViewSet(viewsets.ModelViewSet):
             image=image,
             urgency_level=level,
         )
-
+        # Clear cache:
+        cache.delete("campaigns_list")
         return Response(
             {"message": "Campaign created successfully"}, status=status.HTTP_201_CREATED
         )
 
     def list(self, request, *args, **kwargs):
-        """Update volunteer points whenever campaigns are fetched in the feed."""
-        print("access to it")
+        """Update volunteer points whenever campaigns are fetched and cache the results."""
+
+        cache_key = "campaigns_list"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response(cached_data)
+
+        print("Fetching from DB and updating volunteer points...")
+
         queryset = self.get_queryset()
+
+        profiles_to_update = []
+        comments_to_update = []
 
         for campaign in queryset:
             active_comments = campaign.comments.filter(option="Started").select_related(
                 "user"
             )
+
             for comment in active_comments:
                 elapsed_time = timezone.now() - comment.created_at
-                total_hours = divmod(elapsed_time.total_seconds(), 3600)[
-                    0
-                ]  # Calculate hours
+                total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
                 reward = total_hours * 5
 
-                user_profile = Profile.objects.get(user=comment.user)
-                user_profile.point_achieved = reward
-                user_profile.save()
-                comment.end_at = timezone.now()
-                comment.save()
+                comment.user.profile.point_achieved = reward
+                profiles_to_update.append(comment.user.profile)
 
-        return super().list(request, *args, **kwargs)
+                comment.end_at = timezone.now()
+                comments_to_update.append(comment)
+
+        Profile.objects.bulk_update(profiles_to_update, ["point_achieved"])
+        CommentModel.objects.bulk_update(comments_to_update, ["end_at"])
+
+        response = super().list(request, *args, **kwargs)
+
+        cache.set(cache_key, response.data, timeout=600)
+        return response
 
     @action(detail=False, methods=["get"], url_path="urgent")
     def urgent_campaigns(self, request):
@@ -175,9 +193,9 @@ class CommentViewSet(viewsets.ModelViewSet):
     """
     To create volunteer model through comment u need to pass:
     {
-        "user":"user_id",
-        "option": " Started / Stop",
-        "campaign": "campaign_id
+        "user": "user_id",
+        "option": "Started / Stop",
+        "campaign": "campaign_id"
     }
     """
 
@@ -187,15 +205,25 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         user_id = request.query_params.get("user_id")
+        cache_key = f"comments_list_{user_id}" if user_id else "comments_list"
+
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
+
         if user_id:
             user = get_object_or_404(User, user_id=user_id)
-            comments = CommentModel.objects.filter(user=user)
+            comments = CommentModel.objects.filter(user=user).select_related(
+                "campaign", "user"
+            )
         else:
-            comments = CommentModel.objects.all()
+            comments = CommentModel.objects.all().select_related("campaign", "user")
 
         serializer = self.get_serializer(comments, many=True)
+        cache.set(cache_key, serializer.data, timeout=600)
         return Response(serializer.data)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         user_id = request.data.get("user")
         option = request.data.get("option")
@@ -203,7 +231,6 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         user = get_object_or_404(User, user_id=user_id)
         campaign = get_object_or_404(CampaignModel, id=campaign_id)
-
         comment, created = CommentModel.objects.get_or_create(
             user=user, campaign=campaign
         )
@@ -211,19 +238,14 @@ class CommentViewSet(viewsets.ModelViewSet):
         if not created:
             if option == "Stop" and comment.option == "Started":
                 elapsed_time = timezone.now() - comment.created_at
-
                 total_hours = divmod(elapsed_time.total_seconds(), 3600)[0]
-                print("elap", elapsed_time)
-                print("thourse", total_hours)
                 reward = total_hours * 5
 
                 user.profile.point_achieved += reward
                 user.profile.save()
 
                 comment.option = "Stop"
-                print(reward)
                 comment.total_volunteered += total_hours
-                print("total", comment.total_volunteered)
                 comment.end_at = timezone.now()
                 comment.save()
 
@@ -246,6 +268,8 @@ class CommentViewSet(viewsets.ModelViewSet):
                 {"message": "No changes made"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        cache.delete("comments_list")
 
         return Response(
             {"message": "Contribution started successfully", "id": comment.id},

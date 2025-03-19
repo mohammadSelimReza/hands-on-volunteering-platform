@@ -24,7 +24,6 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class EventSerializer(serializers.ModelSerializer):
-    location = LocationSerializer(read_only=True)
     registered_people = RegisterSerializer(many=True, required=False)
 
     class Meta:

@@ -26,7 +26,7 @@ class EventModel(models.Model):
     )
     image = models.URLField(null=True)
     description = models.CharField(max_length=200)
-    location = models.OneToOneField(
+    location = models.ForeignKey(
         LocationModel, on_delete=models.SET_NULL, null=True, db_index=True
     )
     category = models.ForeignKey(
