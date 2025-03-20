@@ -17,19 +17,18 @@
 
 ### Frontend:
 - **React.js** – For building the user interface and managing state.
-- **Next.js** – For server-side rendering and routing.
+- **Djano** – For server-side rendering and API building
 - **Tailwind CSS** – For styling and building responsive layouts.
 - **Axios** – For making HTTP requests.
 - **Material-UI** – For pre-built React components (buttons, cards, etc.).
 
 ### Backend:
-- **Node.js** – Runtime environment for the server-side logic.
-- **Express.js** – Web framework for handling requests.
+- **Django** – Web framework for handling requests.
 - **PostgreSQL** – Relational database for storing user, event, and volunteer data.
 - **JWT (JSON Web Tokens)** – For handling authentication and authorization.
-- **Bcrypt.js** – For securely hashing passwords.
 - **Cors** – For enabling cross-origin requests.
 - **Dotenv** – For managing environment variables.
+- **DRF** - for API Building.
 
 ---
 
@@ -46,7 +45,6 @@
 - **User Management**: API to register, log in, and update user profiles.
 - **Event Management**: Users and organizations can create, list, and filter volunteer events.
 - **Help Requests**: Users can post and offer help requests for ongoing community needs.
-- **Team Management**: Users can form public or private teams for long-term initiatives.
 - **Impact Tracking**: Track volunteer hours, achievements, and milestones.
 - **API Rate Limiting**: Prevents abuse and overuse of the API with rate limiting.
 
