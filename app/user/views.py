@@ -95,7 +95,7 @@ def activate_account(request, uid64, token):
     if user is not None and token_valid(user, token):
         user.is_active = True
         user.save()
-        return redirect(f"{FRONTEND_URL}/login")
+        return redirect(f"{FRONTEND_URL}/auth/sign-in")
     return redirect(f"{FRONTEND_URL}")
 
 
