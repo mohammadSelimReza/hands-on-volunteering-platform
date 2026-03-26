@@ -1,12 +1,5 @@
 # HandsOn – A Community-Driven Social Volunteering Platform
 
----
-### For Admin Testing in Production Use:
-    ```bash
-    admin: admin@admin.com
-    password: 123
-    ```
-
 ## 1. Project Overview
 
 **HandsOn** is a social volunteering platform designed to connect individuals with community-driven volunteer opportunities. Users can discover and join events, post help requests, create teams for long-term initiatives, and track their volunteer impact. This platform aims to encourage social responsibility and community collaboration.
